@@ -1,0 +1,284 @@
+<?php
+/**
+ * Implementation of hook_theme().
+ */
+/*
+function node_theme_switcher_theme() {
+	$theme = array();
+	$theme['node_theme_switcher_field'] = array(
+    'render element' => 'element',
+	);
+	return $theme;
+}
+*/
+
+/**
+ * Implementation of hook_field_info().
+ */
+function node_theme_switcher_field_info() {
+	$info = array();
+	$info['node_theme_switcher'] = array(
+		'label' => t('Theme'),
+		'description' => t('Settings for node theme switcher.'),
+		'default_widget' => 'node_theme_switcher',
+		'default_formatter' => 'node_theme_switcher_default',
+	);
+	return $info;
+}
+
+/**
+* Implementation of hook_field_is_empty().
+*/
+function node_theme_switcher_field_is_empty($item, $field) {
+  if (empty($item['value'])) {
+    return TRUE;
+  }
+  return FALSE;
+}
+
+/**
+ * Implementation of hook_field_formatter_info().
+ */
+function node_theme_switcher_field_formatter_info() {
+	$info = array();
+	$info['node_theme_switcher_default'] = array(
+		'label' => t('Default'),
+		'field types' => array('node_theme_switcher'),
+	);
+	return $info;
+}
+
+/**
+ * Implementation of hook_field_widget_info().
+ */
+function node_theme_switcher_field_widget_info() {
+	$info = array();
+	$info['node_theme_switcher'] = array(
+		'label' => t('Node Theme Switcher'),
+		'field types' => array('node_theme_switcher'),
+	);
+  return $info;
+}
+
+/**
+ * Implementation of hook_field_widget_form().
+ */
+function node_theme_switcher_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+	$options = _node_theme_switcher_get_options();
+
+	$base = $element;
+  $element['value'] = array(
+    '#type' => 'select',
+    '#options' => $options,
+    '#default_value' => isset($items[$delta]['value']) ? $items[$delta]['value'] : '',
+  ) + $base;
+  return $element;
+}
+
+function _node_theme_switcher_get_themes(){
+  $theme_list = &drupal_static(__FUNCTION__, array());
+
+	if (0 != count($theme_list)) {
+		return $theme_list;
+	}
+
+	$themes = list_themes();
+	$default_theme = variable_get('theme_default');
+
+	if (is_null($default_theme) || !isset($themes[$default_theme])) {
+	  $theme_list['default'] = reset($themes);
+	} else {
+	  $theme_list['default'] = $themes[$default_theme];
+	}
+
+	foreach ($themes as $name => $theme) {
+		if (!isset($theme->info['hidden']) || !$theme->info['hidden']) {
+			$theme_list[$name] = $theme;
+		}
+	}
+
+	return $theme_list;
+}
+
+function _node_theme_switcher_get_options(){
+  $options = &drupal_static(__FUNCTION__, array());
+
+	if (0 != count($options)) {
+		return $options;
+	}
+
+	$themes = _node_theme_switcher_get_themes();
+
+	foreach ($themes as $key => $theme) {
+		if ('default' == $key) {
+			$options['default'] = t('Default');
+		} else {
+			$options[$key] = $theme->info['name'];
+		}
+	}
+
+	return $options;
+}
+
+function node_theme_switcher_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $elements = array();
+  $themes = _node_theme_switcher_get_themes();
+  
+  foreach ($items as $delta => $item) {
+		$theme = $item['value'];
+		if ($theme != 'default' && isset($themes[$theme])) {
+    	_node_theme_switcher_load_theme($theme);
+		}
+    $elements[$delta] = array(
+      '#markup' => '',
+    );
+  }
+  return $elements;
+}
+
+function _node_theme_switcher_load_theme($theme){
+	$themes = list_themes();
+	$default_theme = $GLOBALS['theme'];
+
+	if (!isset($themes[$theme]) || $default_theme == $theme) {
+		return;
+	}
+
+	$GLOBALS['theme'] = $GLOBALS['theme_key'] = $theme;
+	$css_list = _node_theme_switcher_filter_css(_node_theme_switcher_get_css($default_theme));
+	$js_list = _node_theme_switcher_filter_js(_node_theme_switcher_get_js($default_theme));
+	$settings = _node_theme_switcher_get_js_settings();
+	unset($js_list['settings']);
+
+  drupal_static_reset('drupal_add_css');
+  drupal_static_reset('drupal_add_js');
+	_drupal_theme_initialize($themes[$theme], _node_theme_switcher_base_theme($theme));
+
+	foreach ($settings['data'] as $key => $item) {
+		if (!is_array($item)) {
+      continue;
+		}
+		foreach($item as $name => $value) {
+			if ('ajaxPageState' == $name) {
+			  $settings['data'][$key][$name] = array(
+					'theme' => $theme,
+					'theme_token' => drupal_get_token($theme),
+				);
+				break;
+			}
+		}
+	}
+
+	_node_theme_switcher_save_js_settings($settings);
+	_node_theme_switcher_add_css($css_list);
+	_node_theme_switcher_add_js($js_list);
+
+}
+
+function _node_theme_switcher_base_theme($theme){
+  $theme_list = &drupal_static(__FUNCTION__, array());
+
+	if (isset($theme_list[$theme])) {
+		return $theme_list[$theme];
+	}
+
+	$themes = list_themes();
+	$base_theme = array();
+	$ancestor = $theme;
+	
+	while ($ancestor && isset($themes[$ancestor]->base_theme)) {
+	  $ancestor = $themes[$ancestor]->base_theme;
+	  $base_theme[] = $themes[$ancestor];
+	}
+	
+	$theme_list[$theme] = array_reverse($base_theme);
+	return $theme_list[$theme];
+}
+
+function _node_theme_switcher_get_css($theme){
+	$themes = list_themes();
+	$base_theme = _node_theme_switcher_base_theme($theme);
+	$theme = $themes[$theme];
+	$css = array();
+
+  foreach ($base_theme as $base) {
+    if (!empty($base->stylesheets)) {
+      foreach ($base->stylesheets as $media => $stylesheets) {
+        foreach ($stylesheets as $name => $stylesheet) {
+          $css[$stylesheet] = $stylesheet;
+        }
+      }
+    }
+  }
+
+  if (!empty($theme->stylesheets)) {
+    foreach ($theme->stylesheets as $media => $stylesheets) {
+      foreach ($stylesheets as $name => $stylesheet) {
+        $css[$stylesheet] = $stylesheet;
+      }
+    }
+  }
+
+	return $css;
+}
+
+function _node_theme_switcher_get_js($theme){
+	$themes = list_themes();
+	$base_theme = _node_theme_switcher_base_theme($theme);
+	$theme = $themes[$theme];
+	$js = array();
+
+  foreach ($base_theme as $base) {
+    if (!empty($base->scripts)) {
+      foreach ($base->scripts as $name => $script) {
+        $js[$script] = $script;
+      }
+    }
+  }
+
+  if (!empty($theme->scripts)) {
+    foreach ($theme->scripts as $name => $script) {
+      $js[$script] = $script;
+    }
+  }
+
+	return $js;
+}
+
+function _node_theme_switcher_filter_css($css_list){
+	$css = drupal_static('drupal_add_css', array());
+	foreach ($css_list as $item) {
+		unset($css[$item]);
+	}
+	return $css;
+}
+
+function _node_theme_switcher_filter_js($js_list){
+	$js = drupal_static('drupal_add_js', array());
+	foreach ($js_list as $item) {
+		unset($js[$item]);
+	}
+	return $js;
+}
+
+function _node_theme_switcher_add_css($css_list){
+	foreach ($css_list as $data => $options){
+	  drupal_add_css($data, $options);
+	}
+}
+
+function _node_theme_switcher_add_js($js_list){
+	foreach ($js_list as $data => $options){
+	  drupal_add_js($data, $options);
+	}
+}
+
+function _node_theme_switcher_get_js_settings(){
+	$js = &drupal_static('drupal_add_js', array());
+	return $js['settings'];
+}
+
+function _node_theme_switcher_save_js_settings($settings){
+	$js = &drupal_static('drupal_add_js', array());
+	$js['settings'] = $settings;
+}

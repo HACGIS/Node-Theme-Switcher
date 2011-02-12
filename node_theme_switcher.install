@@ -1,0 +1,31 @@
+<?php
+function node_theme_switcher_field_schema($field){
+	$schema = array();
+  $schema['columns']['value'] = array(
+		'type' => 'varchar',
+		'length' => 255,
+		'not null' => false,
+		'sortable' => true,
+	);
+	return $schema;
+}
+/*
+function node_theme_switcher_install(){
+  module_load_include('field.inc', 'node_theme_switcher');
+	$field = field_read_field('webform_signup_date');
+	if (false == $field) {
+	  field_create_field(_webform_signup_date_field());
+	}
+}
+
+function node_theme_switcher_uninstall(){
+  module_load_include('field.inc', 'node_theme_switcher');
+  $node_types = node_type_get_names();
+	foreach ($node_types as $type => $name) {
+		_webform_signup_delete_instance('webform_signup_date', $type);
+	}
+  field_delete_field('webform_signup_date');
+	field_purge_batch(PHP_INT_MAX);
+  variable_del('webform_signup_node_types');
+}
+*/

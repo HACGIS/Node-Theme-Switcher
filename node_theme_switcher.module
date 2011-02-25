@@ -282,3 +282,4 @@ function _node_theme_switcher_save_js_settings($settings){
 	$js = &drupal_static('drupal_add_js', array());
 	$js['settings'] = $settings;
 }
+

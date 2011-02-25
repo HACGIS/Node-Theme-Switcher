@@ -9,6 +9,7 @@ function node_theme_switcher_field_schema($field){
 	);
 	return $schema;
 }
+
 /*
 function node_theme_switcher_install(){
   module_load_include('field.inc', 'node_theme_switcher');

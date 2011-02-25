@@ -1,4 +1,3 @@
-; $Id:
 name = Node Theme Switcher
 description = "Assign separate themes to different nodes"
 package = Theme
@@ -6,5 +5,3 @@ core = 7.x
 version = "7.x-1.x-dev"
 project = "node_theme_switcher"
 dependencies[] = field
-files[] = node_theme_switcher.module
-
